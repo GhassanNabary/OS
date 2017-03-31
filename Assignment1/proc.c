@@ -186,6 +186,7 @@ fork(void)
 void
 exit(int status)
 {
+  cprintf( "im in exit my status is ,%d\n",status);
   struct proc *p;
   int fd;
 
@@ -220,9 +221,13 @@ exit(int status)
   }
 
   // Jump into the scheduler, never to return.
+  proc->exit_status=status;
   proc->state = ZOMBIE;
   sched();
   panic("zombie exit");
+  //adding exit status
+
+
 }
 
 // Wait for a child process to exit and return its pid.
@@ -231,9 +236,9 @@ exit(int status)
 int
 wait(int *status)
 {
+
   struct proc *p;
   int havekids, pid;
-
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -252,6 +257,11 @@ wait(int *status)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+        
+      if(status){
+        (*status)=p->exit_status; /// im not sure
+        cprintf( "im in wait my status is ,%d\n",(*status));
+      }
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
