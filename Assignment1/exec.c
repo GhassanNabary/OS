@@ -9,12 +9,17 @@
 void 
 pseudo_main(int (*entry)(int, char**), int argc, char **argv) 
 {
+   //cprintf("Im in pseudo_main");
+   //cprintf("Fuck my life");
+    int status =(*entry)(argc,argv);
+    asm("pushl %0; movl $2,%%eax; int $64;" : "=r" (status));
+    exit(status);
 }
 
 int
 exec(char *path, char **argv)
 {
-  
+   
   char *s, *last;
   int i, off;
   uint argc, sz, sp, ustack[3+MAXARG+1];
@@ -79,6 +84,8 @@ exec(char *path, char **argv)
 
   sp = sz;
 
+
+
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
@@ -86,16 +93,19 @@ exec(char *path, char **argv)
     sp = (sp - (strlen(argv[argc]) + 1)) & ~3;
     if(copyout(pgdir, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
       goto bad;
-    ustack[3+argc] = sp;
+    ustack[4+argc] = sp;
   }
-  ustack[3+argc] = 0;
+  //i changed it from 3 to 4
+  ustack[4+argc] = 0;
 
   ustack[0] = 0xffffffff;  // fake return PC
-  ustack[1] = argc;
-  ustack[2] = sp - (argc+1)*4;  // argv pointer
+  ustack[1] = elf.entry;  // entry pointer, wtf im doing here
+  //ustack[1] = pointer_pseudo_main;  // entry pointer, wtf im doing here
+  ustack[2] = argc;
+  ustack[3] = sp - (argc+1)*4;  // argv pointer
 
-  sp -= (3+argc+1) * 4;
-  if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
+  sp -= (4+argc+1)*4;
+  if(copyout(pgdir, sp, ustack, (4+argc+1)*4) < 0)
     goto bad;
 
   // Save program name for debugging.
@@ -104,11 +114,14 @@ exec(char *path, char **argv)
       last = s+1;
   safestrcpy(proc->name, last, sizeof(proc->name));
 
+
+
   // Commit to the user image.
   oldpgdir = proc->pgdir;
   proc->pgdir = pgdir;
   proc->sz = sz;
-  proc->tf->eip = elf.entry;  // main
+  //proc->tf->eip = elf.entry;  // main
+  proc->tf->eip = pointer_pseudo_main;
   proc->tf->esp = sp;
   switchuvm(proc);
   freevm(oldpgdir);

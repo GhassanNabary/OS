@@ -186,7 +186,7 @@ fork(void)
 void
 exit(int status)
 {
-  cprintf( "im in exit my status is ,%d\n",status);
+  //cprintf( "im in exit my status is ,%d\n",status);
   struct proc *p;
   int fd;
 
@@ -257,10 +257,10 @@ wait(int *status)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        
+
       if(status){
         (*status)=p->exit_status; /// im not sure
-        cprintf( "im in wait my status is ,%d\n",(*status));
+        //cprintf( "im in wait my status is ,%d\n",(*status));
       }
         p->state = UNUSED;
         release(&ptable.lock);
