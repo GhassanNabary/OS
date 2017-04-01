@@ -65,6 +65,7 @@ struct proc {
   char name[16];               // Process name (debugging)
   int exit_status;             //exit staus from exit func
   int ntickets;                // number of ntickets (for new scheduler policies)  
+  int proc_priority;           // the priority of the current processes
 };
 
 // Process memory is laid out contiguously, low addresses first:

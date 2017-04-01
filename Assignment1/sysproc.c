@@ -93,3 +93,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_priority(void){
+  int pr;
+  argint(0,&pr);
+  proc->proc_priority = pr;  
+  return pr;
+}

@@ -16,7 +16,7 @@ static struct proc *initproc;
 
 int nextpid = 1;
 
-int cur_policy = 0;       // default policy  = 0
+int cur_policy = 1;       // default policy  = 0
 extern void forkret(void);
 extern void trapret(void);
 int generatePRNGAndGetNextPID();
@@ -116,6 +116,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  p->proc_priority=10;
 
   release(&ptable.lock);
 }
@@ -183,7 +184,7 @@ fork(void)
 
   // TODO: Check whether it should get its father tickets or the init
   np->ntickets = getInitNTickets(); 
-
+  np->proc_priority = 10;
   release(&ptable.lock);
 
   return pid;
@@ -316,6 +317,8 @@ getNextProcess()
 {
   struct proc *p;
   int curNTicket = generatePRNGAndGetNextPID();
+  // if(curNTicket != 0)
+  //   cprintf("%d\n",curNTicket);
   int counter = 0;
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     counter = counter + p->ntickets;
@@ -338,19 +341,28 @@ initPolicy()
         p->ntickets = 10;
     }
   }
+  if(cur_policy == 1){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE){
+        p->ntickets = p->proc_priority;
+      }
+    }
+  }
 }
 
-void
-policy(int num)
-{
-  cur_policy = num;
-  initPolicy();
-}
+// void
+// policy(int num)
+// {
+//   cur_policy = num;
+//   initPolicy();
+// }
 
 int
 getInitNTickets()
 {
   if(cur_policy == 0)
+    return 10;
+  if(cur_policy == 1)
     return 10;
   return 0; // Shouldn't get here
 }
@@ -367,7 +379,6 @@ void
 scheduler(void)
 {
   struct proc *p;
-  
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -376,7 +387,6 @@ scheduler(void)
     acquire(&ptable.lock);
 
     p = getNextProcess();
-
     if(p == 0){
       proc = 0;
       release(&ptable.lock);
