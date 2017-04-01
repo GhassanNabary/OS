@@ -15,8 +15,14 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
+
+int cur_policy = 0;       // default policy  = 0
 extern void forkret(void);
 extern void trapret(void);
+int generatePRNGAndGetNextPID();
+int getTotalNumOfTickets();
+struct proc * getNextProcess();
+int getInitNTickets();
 
 static void wakeup1(void *chan);
 
@@ -175,6 +181,9 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  // TODO: Check whether it should get its father tickets or the init
+  np->ntickets = getInitNTickets(); 
+
   release(&ptable.lock);
 
   return pid;
@@ -279,6 +288,73 @@ wait(int *status)
   }
 }
 
+int currentPRNG = 5;
+// Blum Blum Shub PRNG method - see wiki page for more info
+int
+generatePRNGAndGetNextPID()
+{
+  int prime1 = 83;
+  int prime2 = 127;
+  int m = prime1*prime2;
+  currentPRNG = (currentPRNG*currentPRNG)%m;
+  return currentPRNG*getTotalNumOfTickets()/m;
+}
+
+int
+getTotalNumOfTickets()
+{
+  struct proc *p;
+  int counter = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    counter = counter + p->ntickets;
+  }
+  return counter;
+}
+
+struct proc *
+getNextProcess()
+{
+  struct proc *p;
+  int curNTicket = generatePRNGAndGetNextPID();
+  int counter = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    counter = counter + p->ntickets;
+    if(curNTicket < counter){
+      return p;
+    }
+  }
+  return 0; //Shouldn't get here unless no process is running
+}
+
+// Called only once on start in order to init the ntickets for each process
+// #policy: 0-Uniform time distribution, 1-Priority scheduling, 2-Dynamic tickets allocation
+void
+initPolicy()
+{
+  struct proc *p;
+  if(cur_policy == 0){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE)
+        p->ntickets = 10;
+    }
+  }
+}
+
+void
+policy(int num)
+{
+  cur_policy = num;
+  initPolicy();
+}
+
+int
+getInitNTickets()
+{
+  if(cur_policy == 0)
+    return 10;
+  return 0; // Shouldn't get here
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -291,32 +367,42 @@ void
 scheduler(void)
 {
   struct proc *p;
-
+  
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
+    initPolicy();
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      swtch(&cpu->scheduler, p->context);
-      switchkvm();
+    p = getNextProcess();
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
+    if(p == 0){
       proc = 0;
+      release(&ptable.lock);
+      continue;
     }
-    release(&ptable.lock);
 
+    if(p->state != RUNNABLE){
+      p->ntickets = 0;
+      proc = 0;
+      release(&ptable.lock);
+      continue;
+    }
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    swtch(&cpu->scheduler, p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
+    release(&ptable.lock);
   }
 }
 
