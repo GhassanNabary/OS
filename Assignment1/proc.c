@@ -16,7 +16,6 @@ static struct proc *initproc;
 
 int nextpid = 1;
 
-int cur_policy = 1;       // default policy  = 0
 extern void forkret(void);
 extern void trapret(void);
 int generatePRNGAndGetNextPID();
@@ -117,7 +116,7 @@ userinit(void)
 
   p->state = RUNNABLE;
   p->proc_priority=10;
-
+  p->ntickets = getInitNTickets(p);
   release(&ptable.lock);
 }
 
@@ -183,8 +182,8 @@ fork(void)
   np->state = RUNNABLE;
 
   // TODO: Check whether it should get its father tickets or the init
-  np->ntickets = getInitNTickets(); 
   np->proc_priority = 10;
+  np->ntickets = getInitNTickets(np);   
   release(&ptable.lock);
 
   return pid;
@@ -289,13 +288,14 @@ wait(int *status)
   }
 }
 
-int currentPRNG = 5;
+unsigned long currentPRNG = 5;
+
 // Blum Blum Shub PRNG method - see wiki page for more info
 int
 generatePRNGAndGetNextPID()
 {
-  int prime1 = 83;
-  int prime2 = 127;
+  int prime1 = 199;
+  int prime2 = 163;
   int m = prime1*prime2;
   currentPRNG = (currentPRNG*currentPRNG)%m;
   return currentPRNG*getTotalNumOfTickets()/m;
@@ -317,6 +317,7 @@ getNextProcess()
 {
   struct proc *p;
   int curNTicket = generatePRNGAndGetNextPID();
+  // cprintf("curNTicket = %d\n", curNTicket);
   // if(curNTicket != 0)
   //   cprintf("%d\n",curNTicket);
   int counter = 0;
@@ -326,22 +327,23 @@ getNextProcess()
       return p;
     }
   }
-  return 0; //Shouldn't get here unless no process is running
+  // cprintf("ERROR num of ntickets = %d\n", getTotalNumOfTickets());
+  return 0; // Shouldn't get here unless no process is running
 }
 
 // Called only once on start in order to init the ntickets for each process
-// #policy: 0-Uniform time distribution, 1-Priority scheduling, 2-Dynamic tickets allocation
+// #policy: 0-Uniform time distribution, 1-Priority scheduling, 2-Dynamic tickets allocation (do nothing)
 void
 initPolicy()
 {
   struct proc *p;
-  if(cur_policy == 0){
+  if(cpu->cur_policy == 0){
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state == RUNNABLE)
         p->ntickets = 10;
     }
   }
-  if(cur_policy == 1){
+  if(cpu->cur_policy == 1){
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state == RUNNABLE){
         p->ntickets = p->proc_priority;
@@ -350,21 +352,31 @@ initPolicy()
   }
 }
 
-// void
-// policy(int num)
-// {
-//   cur_policy = num;
-//   initPolicy();
-// }
-
 int
-getInitNTickets()
+getInitNTickets(struct proc* p)
 {
-  if(cur_policy == 0)
+  if(cpu->cur_policy == 0)
     return 10;
-  if(cur_policy == 1)
-    return 10;
+  if(cpu->cur_policy == 1)
+    return p->proc_priority;
+  if(cpu->cur_policy == 2)
+    return 20;
   return 0; // Shouldn't get here
+}
+
+void
+changeNticketsBy(struct proc* p, int dif)
+{
+  // cprintf("before : tic = %d dif = %d\n",p->ntickets, dif);
+  if(dif > 0){
+    if(p->ntickets+ dif <= 100)
+      p->ntickets += dif;
+  }
+  else{
+    if(p->ntickets + dif > 0)
+      p->ntickets += dif;
+  }
+  // cprintf("after : tic = %d dif = %d\n\n\n",p->ntickets, dif);
 }
 
 //PAGEBREAK: 42
@@ -379,23 +391,25 @@ void
 scheduler(void)
 {
   struct proc *p;
+  cpu->cur_policy = 0;      // Default policy
   for(;;){
     // Enable interrupts on this processor.
     sti();
-    initPolicy();
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-
+    initPolicy();    
     p = getNextProcess();
     if(p == 0){
-      proc = 0;
+      // proc = 0;
       release(&ptable.lock);
       continue;
     }
+    // each run reduce 1 if not blocking (if blocking add 11 so totally add 10)
+    if(cpu->cur_policy == 2)
+      changeNticketsBy(p, -1);
 
     if(p->state != RUNNABLE){
-      p->ntickets = 0;
-      proc = 0;
+      // proc = 0;
       release(&ptable.lock);
       continue;
     }
@@ -408,7 +422,9 @@ scheduler(void)
     p->state = RUNNING;
     swtch(&cpu->scheduler, p->context);
     switchkvm();
-
+    // cprintf("currentPRNG = %d getTotalNumOfTickets = %d\n",currentPRNG, getTotalNumOfTickets());
+    // cprintf("nextTicket = %d\n",currentPRNG*getTotalNumOfTickets()/6313);
+    
     // Process is done running for now.
     // It should have changed its p->state before coming back.
     proc = 0;
@@ -501,6 +517,10 @@ sleep(void *chan, struct spinlock *lk)
 
   // Tidy up.
   proc->chan = 0;
+
+  // Dynamic allocation
+  if(cpu->cur_policy == 2)
+    changeNticketsBy(proc, 11);
 
   // Reacquire original lock.
   if(lk != &ptable.lock){  //DOC: sleeplock2

@@ -101,3 +101,11 @@ sys_priority(void){
   proc->proc_priority = pr;  
   return pr;
 }
+
+int
+sys_policy(void){
+  int pol;
+  argint(0,&pol);
+  cpu->cur_policy = pol;  
+  return pol;
+}

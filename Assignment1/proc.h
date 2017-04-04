@@ -11,6 +11,7 @@ struct cpu {
   // Cpu-local storage variables; see below
   struct cpu *cpu;
   struct proc *proc;           // The currently-running process.
+  int cur_policy;              // Scheduler policy
 };
 
 extern struct cpu cpus[NCPU];
