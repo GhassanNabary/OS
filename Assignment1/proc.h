@@ -11,6 +11,15 @@ struct cpu {
   // Cpu-local storage variables; see below
   struct cpu *cpu;
   struct proc *proc;           // The currently-running process.
+  int cur_policy;              // Scheduler policy
+};
+
+struct perf {
+  int ctime;
+  int ttime;
+  int stime;
+  int retime;
+  int rutime;
 };
 
 extern struct cpu cpus[NCPU];
@@ -64,6 +73,13 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int exit_status;             //exit staus from exit func
+  int ntickets;                // number of ntickets (for new scheduler policies)  
+  int proc_priority;           // the priority of the current processes
+  int ctime;                   // creation time
+  int ttime;                   // termination time
+  int stime;                   // sleep time
+  int retime;                  // ready time
+  int rutime;                  // running time
 };
 
 // Process memory is laid out contiguously, low addresses first:

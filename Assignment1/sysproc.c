@@ -26,8 +26,21 @@ int
 sys_wait(void)
 {
   int status;
-  argint(0,&status);
+  if(argint(0,&status) < 0)
+    return -1;
   return wait((int*)status);
+}
+
+int
+sys_wait_stat(void)
+{
+  int status;
+  struct perf* performance;
+  if(argint(0,&status) < 0)
+    return -1;
+  if(argint(1,(int*)&performance) < 0)
+    return -1;
+  return wait_stat((int*)status, performance);
 }
 
 int
@@ -92,4 +105,23 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+int
+sys_priority(void){
+  int pr;
+  if(argint(0,&pr) < 0)
+    return -1;
+  proc->proc_priority = pr;  
+  proc->ntickets = pr;
+  return pr;
+}
+
+int
+sys_policy(void){
+  int pol;
+  if(argint(0,&pol) < 0)
+    return -1;
+  cpu->cur_policy = pol;  
+  return pol;
 }

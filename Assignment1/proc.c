@@ -15,8 +15,14 @@ struct {
 static struct proc *initproc;
 
 int nextpid = 1;
+
 extern void forkret(void);
 extern void trapret(void);
+int generatePRNGAndGetNextPID();
+int getTotalNumOfTickets();
+struct proc * getNextProcess();
+int getInitNTickets();
+void initProcTimes(struct proc*);
 
 static void wakeup1(void *chan);
 
@@ -72,6 +78,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  initProcTimes(p);
 
   return p;
 }
@@ -110,7 +117,8 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-
+  p->proc_priority=10;
+  p->ntickets = getInitNTickets(p);
   release(&ptable.lock);
 }
 
@@ -175,6 +183,9 @@ fork(void)
 
   np->state = RUNNABLE;
 
+  // TODO: Check whether it should get its father tickets or the init
+  np->proc_priority = 10;
+  np->ntickets = getInitNTickets(np);   
   release(&ptable.lock);
 
   return pid;
@@ -279,6 +290,183 @@ wait(int *status)
   }
 }
 
+int
+wait_stat(int *status, struct perf * performance)
+{
+
+  struct proc *p;
+  int havekids, pid;
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        performance->ctime = p->ctime;
+        performance->ttime = p->ttime;
+        performance->stime = p->stime;
+        performance->retime = p->retime;
+        performance->rutime = p->rutime;
+        
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+
+      if(status){
+        (*status)=p->exit_status; /// im not sure
+        //cprintf( "im in wait my status is ,%d\n",(*status));
+      }
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+
+void
+initProcTimes(struct proc* p)
+{
+  acquire(&tickslock);
+  p->ctime = ticks;
+  release(&tickslock);
+  p->ttime = 0;
+  p->stime = 0;
+  p->retime = 0;
+  p->rutime = 0;
+}
+
+
+unsigned long currentPRNG = 5;
+// Blum Blum Shub PRNG method - see wiki page for more info
+int
+generatePRNGAndGetNextPID()
+{
+  int prime1 = 199;
+  int prime2 = 163;
+  unsigned long m = prime1*prime2;
+  currentPRNG = (currentPRNG*currentPRNG)%m;
+  return currentPRNG*getTotalNumOfTickets()/m;  
+}
+
+int
+getTotalNumOfTickets()
+{
+  struct proc *p;
+  int counter = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    counter = counter + p->ntickets;
+  }
+  return counter;
+}
+
+struct proc *
+getNextProcess()
+{
+  struct proc *p;
+  int curNTicket = generatePRNGAndGetNextPID() + 1;
+  // cprintf("curNTicket = %d\n", curNTicket);
+  // if(curNTicket != 0)
+  //   cprintf("total numoftickets = %d, curNTicket = %d\n",getTotalNumOfTickets(), curNTicket);
+  int counter = 0;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    counter = counter + p->ntickets;
+    if(curNTicket < counter){
+      return p;
+    }
+  }
+  // cprintf("ERROR num of ntickets = %d\n", getTotalNumOfTickets());
+  return 0; // Shouldn't get here unless no process is running
+}
+
+// Called only once on start in order to init the ntickets for each process
+// #policy: 0-Uniform time distribution, 1-Priority scheduling, 2-Dynamic tickets allocation (do nothing)
+void
+initPolicy()
+{
+  struct proc *p;
+  if(cpu->cur_policy == 0){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->state == RUNNABLE)
+        p->ntickets = 10;
+    }
+  }
+  if(cpu->cur_policy == 1){
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      p->ntickets = p->proc_priority;
+    }
+  }
+}
+
+int
+getInitNTickets(struct proc* p)
+{
+  if(cpu->cur_policy == 0)
+    return 10;
+  if(cpu->cur_policy == 1)
+    return p->proc_priority;
+  if(cpu->cur_policy == 2)
+    return 20;
+  return 0; // Shouldn't get here
+}
+
+void
+changeNticketsBy(struct proc* p, int dif)
+{
+  // cprintf("before : tic = %d dif = %d\n",p->ntickets, dif);
+  if(dif > 0){
+    if(p->ntickets+ dif <= 100)
+      p->ntickets += dif;
+  }
+  else{
+    if(p->ntickets + dif > 0)
+      p->ntickets += dif;
+  }
+  // cprintf("after : tic = %d dif = %d\n\n\n",p->ntickets, dif);
+}
+
+void
+addTicksToAllProcs()
+{
+  acquire(&ptable.lock);
+  struct proc * p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    switch(p->state){
+      case SLEEPING:
+        p->stime ++;
+        break;
+      case RUNNING:
+        p->rutime ++;
+        break;
+      case RUNNABLE:
+        p->retime ++;
+        break;
+      default:
+        break;
+    }
+  }
+  release(&ptable.lock); 
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -291,32 +479,44 @@ void
 scheduler(void)
 {
   struct proc *p;
-
+  cpu->cur_policy = 0;      // Default policy
   for(;;){
     // Enable interrupts on this processor.
     sti();
-
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
-
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
-      swtch(&cpu->scheduler, p->context);
-      switchkvm();
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      proc = 0;
+    initPolicy();    
+    p = getNextProcess();
+    if(p == 0){
+      // proc = 0;
+      release(&ptable.lock);
+      continue;
     }
-    release(&ptable.lock);
+    // each run reduce 1 if not blocking (if blocking add 11 so totally add 10)
+    if(cpu->cur_policy == 2)
+      changeNticketsBy(p, -1);
 
+    if(p->state != RUNNABLE){
+      // proc = 0;
+      release(&ptable.lock);
+      continue;
+    }
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+    swtch(&cpu->scheduler, p->context);
+    switchkvm();
+    // cprintf("currentPRNG = %d getTotalNumOfTickets = %d\n",currentPRNG, getTotalNumOfTickets());
+    // cprintf("nextTicket = %d\n",currentPRNG*getTotalNumOfTickets()/6313);
+    
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
+    release(&ptable.lock);
   }
 }
 
@@ -405,6 +605,10 @@ sleep(void *chan, struct spinlock *lk)
 
   // Tidy up.
   proc->chan = 0;
+
+  // Dynamic allocation
+  if(cpu->cur_policy == 2)
+    changeNticketsBy(proc, 11);
 
   // Reacquire original lock.
   if(lk != &ptable.lock){  //DOC: sleeplock2

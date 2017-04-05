@@ -37,8 +37,12 @@ void
 trap(struct trapframe *tf)
 {
   if(tf->trapno == T_SYSCALL){
-    if(proc->killed)
+    if(proc->killed){
+      acquire(&tickslock);
+        proc->ttime = ticks;
+      release(&tickslock);
       exit(0);
+    }
     proc->tf = tf;
     syscall();
     if(proc->killed)
@@ -50,6 +54,7 @@ trap(struct trapframe *tf)
   case T_IRQ0 + IRQ_TIMER:
     if(cpunum() == 0){
       acquire(&tickslock);
+      addTicksToAllProcs(); // is inside proc.c  
       ticks++;
       wakeup(&ticks);
       release(&tickslock);
