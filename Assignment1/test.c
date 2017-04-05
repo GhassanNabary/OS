@@ -4,7 +4,7 @@
 
 int main() {
     if (fork() >0) {
-        policy(2);
+        policy(1);
         for(;;)
             printf(1, "*****    1 ********\n");
     } else {

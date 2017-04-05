@@ -296,9 +296,9 @@ generatePRNGAndGetNextPID()
 {
   int prime1 = 199;
   int prime2 = 163;
-  int m = prime1*prime2;
+  unsigned long m = prime1*prime2;
   currentPRNG = (currentPRNG*currentPRNG)%m;
-  return currentPRNG*getTotalNumOfTickets()/m;
+  return currentPRNG*getTotalNumOfTickets()/m;  
 }
 
 int
@@ -316,10 +316,10 @@ struct proc *
 getNextProcess()
 {
   struct proc *p;
-  int curNTicket = generatePRNGAndGetNextPID();
+  int curNTicket = generatePRNGAndGetNextPID() + 1;
   // cprintf("curNTicket = %d\n", curNTicket);
   // if(curNTicket != 0)
-  //   cprintf("%d\n",curNTicket);
+  //   cprintf("total numoftickets = %d, curNTicket = %d\n",getTotalNumOfTickets(), curNTicket);
   int counter = 0;
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     counter = counter + p->ntickets;
@@ -345,9 +345,7 @@ initPolicy()
   }
   if(cpu->cur_policy == 1){
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state == RUNNABLE){
-        p->ntickets = p->proc_priority;
-      }
+      p->ntickets = p->proc_priority;
     }
   }
 }
@@ -395,9 +393,9 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
+    initPolicy();      
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    initPolicy();    
     p = getNextProcess();
     if(p == 0){
       // proc = 0;

@@ -99,6 +99,7 @@ sys_priority(void){
   int pr;
   argint(0,&pr);
   proc->proc_priority = pr;  
+  proc->ntickets = pr;
   return pr;
 }
 
