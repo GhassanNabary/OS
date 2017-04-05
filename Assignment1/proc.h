@@ -14,6 +14,14 @@ struct cpu {
   int cur_policy;              // Scheduler policy
 };
 
+struct perf {
+  int ctime;
+  int ttime;
+  int stime;
+  int retime;
+  int rutime;
+};
+
 extern struct cpu cpus[NCPU];
 extern int ncpu;
 
@@ -67,6 +75,11 @@ struct proc {
   int exit_status;             //exit staus from exit func
   int ntickets;                // number of ntickets (for new scheduler policies)  
   int proc_priority;           // the priority of the current processes
+  int ctime;                   // creation time
+  int ttime;                   // termination time
+  int stime;                   // sleep time
+  int retime;                  // ready time
+  int rutime;                  // running time
 };
 
 // Process memory is laid out contiguously, low addresses first:

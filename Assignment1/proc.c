@@ -22,6 +22,7 @@ int generatePRNGAndGetNextPID();
 int getTotalNumOfTickets();
 struct proc * getNextProcess();
 int getInitNTickets();
+void initProcTimes(struct proc*);
 
 static void wakeup1(void *chan);
 
@@ -77,6 +78,7 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  initProcTimes(p);
 
   return p;
 }
@@ -288,8 +290,73 @@ wait(int *status)
   }
 }
 
-unsigned long currentPRNG = 5;
+int
+wait_stat(int *status, struct perf * performance)
+{
 
+  struct proc *p;
+  int havekids, pid;
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        performance->ctime = p->ctime;
+        performance->ttime = p->ttime;
+        performance->stime = p->stime;
+        performance->retime = p->retime;
+        performance->rutime = p->rutime;
+        
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+
+      if(status){
+        (*status)=p->exit_status; /// im not sure
+        //cprintf( "im in wait my status is ,%d\n",(*status));
+      }
+        p->state = UNUSED;
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
+
+void
+initProcTimes(struct proc* p)
+{
+  acquire(&tickslock);
+  p->ctime = ticks;
+  release(&tickslock);
+  p->ttime = 0;
+  p->stime = 0;
+  p->retime = 0;
+  p->rutime = 0;
+}
+
+
+unsigned long currentPRNG = 5;
 // Blum Blum Shub PRNG method - see wiki page for more info
 int
 generatePRNGAndGetNextPID()
@@ -377,6 +444,29 @@ changeNticketsBy(struct proc* p, int dif)
   // cprintf("after : tic = %d dif = %d\n\n\n",p->ntickets, dif);
 }
 
+void
+addTicksToAllProcs()
+{
+  acquire(&ptable.lock);
+  struct proc * p;
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    switch(p->state){
+      case SLEEPING:
+        p->stime ++;
+        break;
+      case RUNNING:
+        p->rutime ++;
+        break;
+      case RUNNABLE:
+        p->retime ++;
+        break;
+      default:
+        break;
+    }
+  }
+  release(&ptable.lock); 
+}
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -393,9 +483,9 @@ scheduler(void)
   for(;;){
     // Enable interrupts on this processor.
     sti();
-    initPolicy();      
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+    initPolicy();    
     p = getNextProcess();
     if(p == 0){
       // proc = 0;
