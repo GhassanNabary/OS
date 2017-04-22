@@ -73,6 +73,14 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
+  //intialize pending and sig table
+  // p->pending=0x0;
+  // for (int i = 0; i < ; ++i)
+  // {
+  //   /* code */
+  // }
+  // p->sig_handler_arr
+
   return p;
 }
 
@@ -482,4 +490,12 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+
+sighandler_t signal(int signum, sighandler_t handler){
+    sighandler_t old_handler=proc->sig_handler_arr[signum];
+    proc->sig_handler_arr[signum]=handler;
+  return old_handler;
+
 }

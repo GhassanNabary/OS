@@ -89,3 +89,16 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_signal(void)
+{
+  int signum;
+  sighandler_t handler;
+  if(argint(0,&signum)< 0||  argptr(1,(char**)&handler,sizeof(sighandler_t))<0){
+    return -1;
+  }
+
+  return (int)signal(signum,handler);
+
+}

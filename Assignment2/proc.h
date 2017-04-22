@@ -1,5 +1,5 @@
 #define NUMSIG 32
-typedef void (*sighandler_t)(int);
+
 
 // Per-CPU state
 struct cpu {
@@ -67,6 +67,9 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int pending;                 //pending signals
+  //sighandler_t (*sig_handler_arr[NUMSIG])(int); //signal handlers array
+  sighandler_t sig_handler_arr[NUMSIG]; //signal handlers array
+
 };
 
 // Process memory is laid out contiguously, low addresses first:
