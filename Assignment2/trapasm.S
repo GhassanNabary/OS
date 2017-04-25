@@ -23,6 +23,8 @@ alltraps:
   call trap
   addl $4, %esp
 
+  call signals_handling
+
   # Return falls through to trapret...
 .globl trapret
 trapret:

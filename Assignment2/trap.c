@@ -14,6 +14,10 @@ extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
 
+extern int startof_sigreturn(void);
+extern int endof_sigreturn(void);
+extern int shit(void);
+
 void
 tvinit(void)
 {
@@ -108,4 +112,44 @@ trap(struct trapframe *tf)
   // Check if the process has been killed since we yielded
   if(proc && proc->killed && (tf->cs&3) == DPL_USER)
     exit();
+}
+void
+signals_handling(){
+//  int bla =endof_sigreturn-startof_sigreturn;
+  if(proc->in_sig_handling==1){
+    return;
+  }
+  if(proc->pending!=0){
+    int i;
+    for (i = 0; i < NUMSIG; i++)
+    {
+      int mask= 0x00000001 << i;
+      if ((proc->pending & mask)!=0){
+        memmove(proc->tmp_tf,proc->tf,sizeof(struct trapframe));
+
+        proc->pending= proc->pending & ~mask;
+        proc->in_sig_handling=1;
+
+        //copy sigretrun into sp
+        int sizeof_sigreturn=endof_sigreturn-startof_sigreturn;
+        proc->tf->esp=proc->tf->esp-sizeof_sigreturn;
+        uint stack_pointer=proc->tf->esp;
+
+        copyout(proc->pgdir,proc->tf->esp,startof_sigreturn,sizeof_sigreturn);
+        //do sig handler 
+        proc->tf->eip=(uint)proc->sig_handler_arr[i];
+
+        proc->tf->esp=proc->tf->esp-4;
+        //signum arg
+        *((int*) proc->tf->esp) = i;
+        proc->tf->esp=proc->tf->esp-4;
+        *((int*) proc->tf->esp) = stack_pointer;
+
+        return;
+
+      }
+    }
+
+  }
+
 }

@@ -72,15 +72,8 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
-  //intialize pending and sig table
-  // p->pending=0x0;
-  // for (int i = 0; i < ; ++i)
-  // {
-  //   /* code */
-  // }
-  // p->sig_handler_arr
-
+  p->in_sig_handling=0;
+  p->pending=0;
   return p;
 }
 
@@ -178,7 +171,10 @@ fork(void)
   safestrcpy(np->name, proc->name, sizeof(proc->name));
 
   pid = np->pid;
-
+ int var;
+  for (var = 0; var < NUMSIG; var++) {
+  np->sig_handler_arr[var] = 0;
+  }
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
@@ -492,10 +488,41 @@ procdump(void)
   }
 }
 
-
-sighandler_t signal(int signum, sighandler_t handler){
+sighandler_t 
+signal(int signum, sighandler_t handler){
     sighandler_t old_handler=proc->sig_handler_arr[signum];
     proc->sig_handler_arr[signum]=handler;
   return old_handler;
 
 }
+int
+sigsend(int pid, int signum){
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid){
+      int mask=0x00000001 << signum;
+      p->pending= p->pending | mask;
+    release(&ptable.lock);
+    return 0;
+    }
+  }
+   release(&ptable.lock);
+   return -1;
+
+}
+int
+sigreturn(void){
+
+  acquire(&ptable.lock);
+  if(proc->tmp_tf!=0){
+    memmove(proc->tf,proc->tmp_tf,sizeof(struct trapframe));
+    proc->in_sig_handling=0;
+    release(&ptable.lock);
+    return 0;
+  }
+   release(&ptable.lock);
+    return -1;
+ }
+
+

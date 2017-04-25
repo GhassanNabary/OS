@@ -68,7 +68,9 @@ struct proc {
   char name[16];               // Process name (debugging)
   int pending;                 //pending signals
   //sighandler_t (*sig_handler_arr[NUMSIG])(int); //signal handlers array
+  int in_sig_handling;         //1 if sig handling else 0
   sighandler_t sig_handler_arr[NUMSIG]; //signal handlers array
+  struct trapframe *tmp_tf;    //save previos trap frame to execute it after handling sigs
 
 };
 
