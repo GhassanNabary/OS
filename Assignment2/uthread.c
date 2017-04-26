@@ -15,9 +15,9 @@ typedef struct thread thread_t, *thread_p;
 
 struct thread {
   int		 id;
-  int        sp;
-  char 		 stack[STACK_SIZE];
-  int        state;
+  int    sp;
+  char 	 stack[STACK_SIZE];
+  int    state;
 };
 
 static thread_t all_thread[MAX_THREAD];
@@ -50,3 +50,27 @@ uthread_init(void)
   signal(SIGALRM, UTHREAD_QUANTA);
 }
 
+void()
+wrap_and_start_function((void*) func)
+{
+  func();
+  uthread_exit();
+}
+
+// TODO: add args support
+void 
+uthread_create(void (*func)())
+{
+  thread_p t;
+  for (t = all_thread; t < all_thread + MAX_THREAD; t++) {
+    if (t->state == FREE)
+      break;
+  }
+  if (t > all_thread + MAX_THREAD)
+    return; // replace with some exception - No free thread has been found
+  t->sp = (int) (t->stack + STACK_SIZE);   // set sp to the top of the stack
+  t->sp -= 4;                              // space for return address
+  * (int *) (t->sp) = (int)func;           // push return address on stack
+  t->sp -= 32;                             // space for registers that thread_switch expects
+  t->state = RUNNABLE;
+}
