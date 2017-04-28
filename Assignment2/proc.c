@@ -490,6 +490,7 @@ procdump(void)
 
 sighandler_t 
 signal(int signum, sighandler_t handler){
+ // cprintf("in signal %d\n",signum);
     sighandler_t old_handler=proc->sig_handler_arr[signum];
     proc->sig_handler_arr[signum]=handler;
   return old_handler;
@@ -497,12 +498,14 @@ signal(int signum, sighandler_t handler){
 }
 int
 sigsend(int pid, int signum){
+ // cprintf("in sigsend %d\n",signum);
   struct proc *p;
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       int mask=0x00000001 << signum;
       p->pending= p->pending | mask;
+   ///   cprintf("in sigsend p->pending %d\n",p->pending);
     release(&ptable.lock);
     return 0;
     }
@@ -513,10 +516,10 @@ sigsend(int pid, int signum){
 }
 int
 sigreturn(void){
-
+  // cprintf("in sigreturn %d\n",1);
   acquire(&ptable.lock);
-  if(proc->tmp_tf!=0){
-    memmove(proc->tf,proc->tmp_tf,sizeof(struct trapframe));
+  if(&(proc->tmp_tf)!=0){
+    memmove(proc->tf,&(proc->tmp_tf),sizeof(struct trapframe));
     proc->in_sig_handling=0;
     release(&ptable.lock);
     return 0;
