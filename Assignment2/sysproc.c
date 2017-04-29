@@ -122,3 +122,16 @@ sys_sigsend(void)
   return sigsend(pid,signum);
 
 }
+
+int
+sys_alarm(void){
+  int ticks;
+  if(argint(0,&ticks)<0){
+    return -1;
+  }
+  //cprintf("alarm pid is %d\n",proc->pid);
+   // cprintf("alarm_ticks %d\n",ticks);
+  proc->alarm_ticks=ticks;
+  // cprintf("alarm_ticks %d\n",proc->alarm_ticks);
+  return 0;
+}

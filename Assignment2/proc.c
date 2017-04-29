@@ -25,7 +25,11 @@ pinit(void)
 {
   initlock(&ptable.lock, "ptable");
 }
-
+/*void
+default_handler(int sigNum){
+   printf("Fuck\n");
+  printf("A signal %num% was accepted by process %pid%",sigNum,proc->pid);
+}*/
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -74,6 +78,11 @@ found:
   p->context->eip = (uint)forkret;
   p->in_sig_handling=0;
   p->pending=0;
+  p->alarm_ticks=0;
+  for (int i = 0; i < NUMSIG; i++)
+  {
+    p->sig_handler_arr[i]=0;
+  }
   return p;
 }
 
@@ -160,6 +169,13 @@ fork(void)
   np->parent = proc;
   *np->tf = *proc->tf;
 
+  np->alarm_ticks=proc->alarm_ticks;
+  //np->pending=proc->pending;
+
+  for (int i = 0; i < NUMSIG; i++)
+  {
+    np->sig_handler_arr[i]=proc->sig_handler_arr[i];
+  }
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -490,7 +506,7 @@ procdump(void)
 
 sighandler_t 
 signal(int signum, sighandler_t handler){
- // cprintf("in signal %d\n",signum);
+ // cprintf("in signal pid handler %d %d\n",proc->pid,handler );
     sighandler_t old_handler=proc->sig_handler_arr[signum];
     proc->sig_handler_arr[signum]=handler;
   return old_handler;
@@ -526,6 +542,37 @@ sigreturn(void){
   }
    release(&ptable.lock);
     return -1;
+ }
+
+ void
+ alarm(void){
+  //cprintf("fuck this alarm\n");
+  struct proc *p;
+  acquire(&ptable.lock);
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p!=0){
+      //   cprintf("fucking &ptable.proc[NPROC] %d\n",&ptable.proc[NPROC]);
+    if(p->alarm_ticks>0){
+      //cprintf("im here %d\n",p->pid);
+      //cprintf("fucking ticks %d\n",p->alarm_ticks);
+      p->alarm_ticks--;
+    //}
+    if(p->alarm_ticks==0){
+     
+      int mask=0x00000001 << 14;
+      p->pending= p->pending | mask;
+     // cprintf("im here %d\n",p->pid);
+    }
+ }
+}
+
+  }
+    ///cprintf("finished the loop \n");
+     release(&ptable.lock);
+
+ // return;
+
  }
 
 

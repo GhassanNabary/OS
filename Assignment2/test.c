@@ -5,24 +5,29 @@ typedef void (*sighandler_t)(int);
 
 void
 test(int sigNum){
- printf(1,"\n=======================Signal Handler===================================\n Process id:  %d  Signal number: %d \n\n", getpid(),sigNum);
+ sighandler_t handler=(sighandler_t)test;
+signal(14,handler);
+ printf(1, "\n fucking alarm_Hendler \n");
+ //printf(1,"\n=======================Signal Handler===================================\n Process id:  %d  Signal number: %d \n\n", getpid(),sigNum);
 }
 
 
 int
 main(int argc, char *argv[]){
-int j;
-printf(1,"------------------TestEx1----------------- \n");
-sighandler_t handler=(sighandler_t)test;
-for(int i=0;i<32;i++){
- printf(1,"test  for1: i=%d\n",i);
- signal(i,handler);
-}
 
-for(int j=0;j<32;j++){
- sigsend(getpid(),j);
-}
-for(j=0; j<15; j++)
-	  sleep(1);
+sighandler_t handler=(sighandler_t)test;
+signal(14,handler);
+//sleep(5);
+//printf(1,"pid is %d\n",getpid() );
+  int p;
+  printf(1, " start  alarmtest \n");
+  alarm(100);
+  printf(1, "\n alarm_Hendler \n");
+  for(p = 0; p < 50*500000; p++){
+    if((p++ % 500000) == 0)
+      write(2, ".", 1);
+  }
+//sigsend(getpid(),14);
+//alarm(10);
 exit();
 }

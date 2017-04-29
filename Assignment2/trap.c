@@ -58,7 +58,11 @@ trap(struct trapframe *tf)
       ticks++;
       wakeup(&ticks);
       release(&tickslock);
+      //the hell im doing here!!!
+      //cprintf("fuck this shit pid %d\n",proc->pid);
+      alarm();
     }
+     //alarm();
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
@@ -115,16 +119,26 @@ trap(struct trapframe *tf)
     exit();
 }
 void
+default_handler(int sigNum){
+  // cprintf("Fuck\n");
+  cprintf("A signal %d was accepted by process %d \n",sigNum,proc->pid);
+}
+
+void
 signals_handling(){
+     // cprintf("catchya %d\n",1);
   if (proc == 0){
+
     return;
   }
 
   if(proc->in_sig_handling==1){
+ cprintf("signals_handling w\n");
     return;
   }
  
   if(proc->pending!=0){
+     cprintf("catchya %d\n",proc->pending);
     int i;
     for (i = 0; i < NUMSIG; i++)
     {
@@ -140,8 +154,13 @@ signals_handling(){
         proc->tf->esp=proc->tf->esp-sizeof_sigreturn;
         uint stack_pointer=proc->tf->esp;
         copyout(proc->pgdir,proc->tf->esp,startof_sigreturn,sizeof_sigreturn);
-        //do sig handler 
+       // cprintf("sig_handler_arr[14] %d\n",proc->sig_handler_arr[i]);
+        if(proc->sig_handler_arr[i]!=0){
         proc->tf->eip=(uint)proc->sig_handler_arr[i];
+        }
+        else{
+          default_handler(i);
+        }
 
         proc->tf->esp=proc->tf->esp-4;
         //signum arg

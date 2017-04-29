@@ -72,7 +72,7 @@ struct proc {
   sighandler_t sig_handler_arr[NUMSIG]; //signal handlers array
   struct trapframe tmp_tf;    //save previos trap frame to execute it after handling sigs
   //struct trapframe *tmp_tf;    //save previos trap frame to execute it after handling sigs
-
+  int alarm_ticks;            //countdown alarm ticks
 };
 
 // Process memory is laid out contiguously, low addresses first:

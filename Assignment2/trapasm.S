@@ -22,12 +22,18 @@ alltraps:
   pushl %esp
   call trap
   addl $4, %esp
-
+  #---------------------------------
   call signals_handling
+  #---------------------------------
 
   # Return falls through to trapret...
 .globl trapret
 trapret:
+  #---------------------------------
+ # pushl %esp
+  call signals_handling
+ # addl $4, %esp
+  #---------------------------------
   popal
   popl %gs
   popl %fs
