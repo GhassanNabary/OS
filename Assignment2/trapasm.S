@@ -30,9 +30,9 @@ alltraps:
 .globl trapret
 trapret:
   #---------------------------------
- # pushl %esp
+ pushl %esp
   call signals_handling
- # addl $4, %esp
+ addl $4, %esp
   #---------------------------------
   popal
   popl %gs

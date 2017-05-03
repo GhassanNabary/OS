@@ -56,6 +56,8 @@ trap(struct trapframe *tf)
     if(cpunum() == 0){
       acquire(&tickslock);
       ticks++;
+      if(ticks%10 == 0)
+        cprintf("%d\n",ticks);
       wakeup(&ticks);
       release(&tickslock);
       //the hell im doing here!!!
@@ -132,10 +134,10 @@ signals_handling(){
     return;
   }
 
-  if(proc->in_sig_handling==1){
- cprintf("signals_handling w\n");
-    return;
-  }
+ //  if(proc->in_sig_handling==1){
+ // cprintf("signals_handling w\n");
+ //    return;
+ //  }
  
   if(proc->pending!=0){
      cprintf("catchya %d\n",proc->pending);
