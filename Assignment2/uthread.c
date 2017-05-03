@@ -104,7 +104,7 @@ void uthread_exit(void)
   for(i = 0; i < MAX_THREAD; ++i) {
     if (threads[i].state != T_FREE) {
       // There exists at least one other thread, so it is safe to yield
-      uthread_schedule();
+      uthread_schedule(SIGALRM);
       // Control will never continue to here, since this thread has already
       // been removed from the thread table
     }
@@ -115,7 +115,7 @@ void uthread_exit(void)
   exit();
 }
 
-void uthread_schedule(void)
+void uthread_schedule(int signum)
 {
   // This is necessary incase uthread_schedule was explicitly called rather than
   // being called from the alarm signal:
@@ -182,7 +182,7 @@ search:
     if(threads[i].state != T_FREE && threads[i].tid == tid) {
       // Found the matching thread. Put the current thread to sleep
       threads[current_thread_index].state = T_SLEEPING;
-      uthread_schedule();
+      uthread_schedule(SIGALRM);
 
       // We arrive here after the current thread has been woken up. Jump up and
       // try again

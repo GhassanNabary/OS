@@ -1,4 +1,5 @@
 #define THREAD_QUANTA 5
+#define SIGALRM 14
 
 /* Possible states of a thread; */
 typedef enum  {T_FREE, T_RUNNING, T_RUNNABLE, T_SLEEPING} uthread_state;
@@ -19,6 +20,6 @@ struct uthread {
 int  uthread_init(void);
 int  uthread_create(void (*func)(void *), void* value);
 void uthread_exit(void);
-void uthread_schedule(void);
+void uthread_schedule(int);
 int  uthred_self(void);
 int  uthred_join(int tid);

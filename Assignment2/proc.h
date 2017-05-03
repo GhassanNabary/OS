@@ -1,5 +1,6 @@
 #define NUMSIG 32
 //#include "x86.h"
+#define SIGALRM 14
 
 // Per-CPU state
 struct cpu {
