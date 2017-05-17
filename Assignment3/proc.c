@@ -34,6 +34,7 @@ pinit(void)
 static struct proc*
 allocproc(void)
 {
+  int i;
   struct proc *p;
   char *sp;
 
@@ -69,6 +70,15 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+
+  //file creation
+  if(proc){
+  createSwapFile(p);
+    }
+  for (i = 0; i < NELEM(p->metadata); i++)
+  {
+    p->metadata[i] = 0;
+  }
 
   return p;
 }
@@ -128,7 +138,7 @@ growproc(int n)
 int
 fork(void)
 {
-  int i, pid;
+  int i, j, pid;
   struct proc *np;
 
   // Allocate process.
@@ -145,7 +155,24 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-
+  // check if needed
+  np->page_faultsNum = 0;
+  np->psyc_page_count = proc->psyc_page_count;
+  np->total_paged_out = proc->total_paged_out;
+  //swap file creation
+  createSwapFile(np);
+  if(is_user_proc() && proc){
+  //copy father's swap files
+    for (j = 0; j < proc->swapFile_offset; j+=PGSIZE)
+    {
+      writeToSwapFile(np, (char*)proc->swapFile, j, PGSIZE);
+    }
+    //copy meta data
+/*   for (j = 0; j < NELEM(proc->metadata); j++)
+    {
+      np->metadata[j] = proc->metadata[j];
+    }*/
+  }
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -177,6 +204,11 @@ exit(void)
 
   if(proc == initproc)
     panic("init exiting");
+
+  //removeing swap file
+  if(removeSwapFile(proc) < 0){
+    cprintf("ERROR: CAN'T DELETE SWAP FILE IN EXIT(), PROCCESS: %d \n",proc->pid);
+  }
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -238,6 +270,10 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+        //removeing swap file
+       if(removeSwapFile(p) < 0){
+           cprintf("ERROR: CAN'T DELETE SWAP FILE IN Wait(), ZOMBIE\n");
+        }
         release(&ptable.lock);
         return pid;
       }
