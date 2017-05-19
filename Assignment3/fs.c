@@ -680,7 +680,6 @@ removeSwapFile(struct proc* p)
 	char path[DIGITS];
 	memmove(path,"/.swap", 6);
 	itoa(p->pid, path+ 6);
-
 	struct inode *ip, *dp;
 	struct dirent de;
 	char name[DIRSIZ];
@@ -773,7 +772,6 @@ int
 writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
 	p->swapFile->off = placeOnFile;
-
 	return filewrite(p->swapFile, buffer, size);
 
 }

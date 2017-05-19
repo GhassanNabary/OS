@@ -94,3 +94,23 @@ kalloc(void)
   return (char*)r;
 }
 
+char *
+get_page(char *v){
+  struct run *r;
+
+  if((uint)v % PGSIZE)
+    panic("ERROR: get_page, not aligned page");
+  if(v < end)
+    panic("ERROR: get_page, v < end");
+  if(v2p(v) >= PHYSTOP)
+    panic("ERROR: get_page,v >= PHYSTOP");
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  r = (struct run*)v;
+
+  if(kmem.use_lock)
+    release(&kmem.lock);
+
+  return (char*)r;
+}

@@ -20,6 +20,8 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+uint selection = 1;
+
 void
 pinit(void)
 {
@@ -72,8 +74,8 @@ found:
   p->context->eip = (uint)forkret;
 
   //file creation
-  if(proc){
-  createSwapFile(p);
+  if(proc && selection){
+    createSwapFile(p);
     }
   for (i = 0; i < NELEM(p->metadata); i++)
   {
@@ -159,19 +161,22 @@ fork(void)
   np->page_faultsNum = 0;
   np->psyc_page_count = proc->psyc_page_count;
   np->total_paged_out = proc->total_paged_out;
-  //swap file creation
-  createSwapFile(np);
-  if(is_user_proc() && proc){
-  //copy father's swap files
-    for (j = 0; j < proc->swapFile_offset; j+=PGSIZE)
-    {
-      writeToSwapFile(np, (char*)proc->swapFile, j, PGSIZE);
+  if(selection ){
+    cprintf("mofo pid %d\n",np->pid);
+    //swap file creation
+    createSwapFile(np);
+    if(proc && user_proc()){
+    //copy father's swap files
+      for (j = 0; j < proc->swapFile_offset; j+=PGSIZE)
+      {
+        writeToSwapFile(np, (char*)proc->swapFile, j, PGSIZE);
+      }
+      //copy meta data
+  /*   for (j = 0; j < NELEM(proc->metadata); j++)
+      {
+        np->metadata[j] = proc->metadata[j];
+      }*/
     }
-    //copy meta data
-/*   for (j = 0; j < NELEM(proc->metadata); j++)
-    {
-      np->metadata[j] = proc->metadata[j];
-    }*/
   }
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -201,14 +206,24 @@ exit(void)
 {
   struct proc *p;
   int fd;
+  static char *states[] = {
+  [UNUSED]    "unused",
+  [EMBRYO]    "embryo",
+  [SLEEPING]  "sleep ",
+  [RUNNABLE]  "runble",
+  [RUNNING]   "run   ",
+  [ZOMBIE]    "zombie"
+  };
+  char *state;
 
   if(proc == initproc)
     panic("init exiting");
 
   //removeing swap file
-  if(removeSwapFile(proc) < 0){
+  if( proc && selection && removeSwapFile(proc) < 0){
     cprintf("ERROR: CAN'T DELETE SWAP FILE IN EXIT(), PROCCESS: %d \n",proc->pid);
   }
+
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -236,6 +251,28 @@ exit(void)
         wakeup1(initproc);
     }
   }
+  // Jump into the scheduler, never to return.
+  proc->state = ZOMBIE;
+
+  //TODO: NISBE
+  /*
+  * PRINT INFO
+  * <field 1><field 2><allocated memory pages><paged out><page faults><total number of paged out><field set 3> 
+  */
+  if(proc->state >= 0 && proc->state < NELEM(states) && states[proc->state])
+    state = states[proc->state];
+  else
+    state = "???";
+  uint vp = 1;
+  if(vp){
+    cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d name:%s",
+    proc->pid, state, proc->psyc_page_count, paged_out_sum(proc), proc->page_faultsNum, proc->total_paged_out, proc->name);
+  }
+    /*if(proc && selection){
+    freevm(proc->pgdir);
+    if(removeSwapFile(proc) < 0)
+      cprintf("ERROR: remove swap file (exit)\n");
+  }*/
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;

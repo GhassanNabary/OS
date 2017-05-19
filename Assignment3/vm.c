@@ -11,6 +11,8 @@ extern char data[];  // defined by kernel.ld
 pde_t *kpgdir;  // for use in scheduler()
 struct segdesc gdt[NSEGS];
 
+int hand = 0;
+
 // Set up CPU's kernel segment descriptors.
 // Run once on entry on each CPU.
 void
@@ -49,7 +51,7 @@ walkpgdir(pde_t *pgdir, const void *va, int alloc)
   pte_t *pgtab;
 
   pde = &pgdir[PDX(va)];
-  if(*pde & PTE_P){
+  if(*pde & PTE_P ){
     pgtab = (pte_t*)p2v(PTE_ADDR(*pde));
   } else {
     if(!alloc || (pgtab = (pte_t*)kalloc()) == 0)
@@ -216,8 +218,54 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 //check if it user process 
 int
-is_user_proc(){
+user_proc(){
   return (strncmp("init", proc->name, sizeof(proc->name)) && strncmp(proc->name , "sh", sizeof(proc->name)));
+}
+pte_t*
+second_fifo(pde_t *pgdir, int sz){
+  pte_t *pte;
+  int found = 0;
+  int i = hand % MAX_PSYC_PAGES;
+  for(; i < sz && !found; i += PGSIZE){
+    //Getting page 
+    if((*(pte = walkpgdir(pgdir, (void *) i, 0)) & ~PTE_P) != 0){
+      //if referne bit is on , clear it and continue
+      if(*pte&PTE_A){
+        *pte &= ~PTE_A; 
+      }
+      else
+        found = 1;
+    }
+  }
+  return pte;
+}
+int
+swap_out(pde_t *pgdir, uint selection){
+  //cprintf("in swap_out\n");
+  pte_t *pte;
+  pte = second_fifo(pgdir, proc->sz);
+  if(pte == 0){
+    return 0;
+  }
+  uint pa = PTE_ADDR(*pte);
+  void *va = p2v(pa);
+  char *buffer = get_page(va);
+  //write the page in swap file 
+  if(writeToSwapFile(proc, buffer, proc->swapFile_offset, PGSIZE) > -1){
+    (proc->metadata[proc->meta_index])->page = pte;
+    (proc->metadata[proc->meta_index])-> location = proc->swapFile_offset;
+    proc-> meta_index = (proc-> meta_index + 1) % NELEM(proc->metadata);
+    proc->swapFile_offset = (proc->swapFile_offset + PGSIZE) % (MAX_PSYC_PAGES * PGSIZE);
+    proc->total_paged_out++;
+    //clear present flag 
+    *pte &= ~PTE_P;
+    //set paged out flag
+    *pte |= PTE_PG;
+    // free physical memory of page 
+    kfree(va);
+    return 1;
+  }
+  return 0;
 }
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
@@ -226,6 +274,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
+  uint selection = 1;
 
   if(newsz >= KERNBASE)
     return 0;
@@ -239,6 +288,18 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
+    }
+
+    if(selection && proc && user_proc()){ 
+      if(proc->psyc_page_count < MAX_PSYC_PAGES){
+        //cprintf("in allocuvml\n");
+        // there's unused room, use it and increase the counter
+        proc->psyc_page_count++;
+        hand++;
+      }
+      else if(swap_out(pgdir, selection) == 0){
+        panic("ERROR: couldn't swap out!!");
+      }
     }
     memset(mem, 0, PGSIZE);
     mappages(pgdir, (char*)a, PGSIZE, v2p(mem), PTE_W|PTE_U);
@@ -255,7 +316,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   pte_t *pte;
   uint a, pa;
-
+  uint selection = 1;
   if(newsz >= oldsz)
     return oldsz;
 
@@ -270,6 +331,12 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
         panic("kfree");
       char *v = p2v(pa);
       kfree(v);
+      //deallocating pages ,so decrease the counter
+      if(selection && proc && user_proc() && proc->psyc_page_count > 0){
+        proc->psyc_page_count--;
+      }
+
+
       *pte = 0;
     }
   }
@@ -380,6 +447,53 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
   }
   return 0;
 }
+/*
+* Allocate a new physical page, copy its data from the file, and map it back to the page
+* table. After returning from the trap frame to user space, the process should retry
+* executing the last failed command again (should not generate a page fault now). 
+* don't forget to check if you passed MAX_PSYC_PAGES, if so another page
+* should be paged out.
+* copied from ASS3! restructions
+*/
+void 
+create_new_page(uint faulting_address){
+    cprintf("create_new_page\n");
+  uint selection = 1;
+  pte_t* pte;
+  // Page allign faulting address
+  faulting_address = PGROUNDDOWN(faulting_address);
+  //allocating new physical mem
+  char* mem = kalloc();
+  //copy its data from swap file 
+  readFromSwapFile(proc, mem, (proc->metadata[proc->meta_index])->location, PGSIZE);
+  pte = walkpgdir(proc->pgdir, (void*)faulting_address, 0);
+  // If the page fault was due to page being paged out -> swap page in.
+  if(*pte&PTE_PG && proc->psyc_page_count == MAX_PSYC_PAGES){
+    if(swap_out(proc->pgdir, selection)){
+      mappages(proc->pgdir, (void*)faulting_address, PGSIZE, v2p(mem), PTE_W|PTE_U);
+    }
+    // Retry execution
+    proc->tf->esp -= 4;
+  }
+
+}
+
+int
+paged_out_sum(struct proc *p){
+  int index, sum = 0;
+  pte_t* pte;
+  int page = (int)p->pgdir;
+  for(index = 0; index < p->psyc_page_count; index++){
+      // Get page
+      if((*(pte = walkpgdir(p->pgdir,  p2v(page), 0)) & ~PTE_P) != 0){
+        // Count it if paged out
+        if((*(pte)&PTE_PG))
+          sum++;
+      }
+    }
+    return sum;
+}
+
 
 //PAGEBREAK!
 // Blank page.

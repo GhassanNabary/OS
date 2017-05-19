@@ -1,10 +1,44 @@
+#include "param.h"
 #include "types.h"
 #include "stat.h"
 #include "user.h"
+#include "fs.h"
+#include "fcntl.h"
+#include "syscall.h"
+#include "traps.h"
+#include "memlayout.h"
 
-int
-main(int argc, char const *argv[])
+#define PGSIZE 4096
+#define COUNT 20
+
+char* m1[COUNT];
+
+//Allocates 20 pages and uses them.
+
+volatile int
+main(int argc, char *argv[])
 {
-	printf(0,"hhh\n");
+
+	int i,j;
+
+	//creating 'COUNT' pages
+	for (i = 0; i < COUNT ; ++i)
+	{
+		m1[i] = sbrk(PGSIZE);
+		printf(1, "allocated page #%d at address: %x\n", i, m1);
+	}
+
+	//using all pages
+	for ( i = 0; i < COUNT; ++i)
+	{
+		for ( j = 0; j < PGSIZE; ++j)
+		{
+			m1[i][j] = 0;
+		}
+	}
+
+	printf(1,"Finished Successfuly!!!\n");
+
 	exit();
+	return 0;
 }

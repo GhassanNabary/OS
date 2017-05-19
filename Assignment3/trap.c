@@ -36,6 +36,9 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  uint selection = 1;
+  uint faulting_address;
+
   if(tf->trapno == T_SYSCALL){
     if(proc->killed)
       exit();
@@ -77,7 +80,15 @@ trap(struct trapframe *tf)
             cpu->id, tf->cs, tf->eip);
     lapiceoi();
     break;
-   
+  case T_PGFLT:
+   if(selection ){
+    cprintf("oops! page fualt!");
+    proc->page_faultsNum++;
+    faulting_address = rcr2();
+    create_new_page(faulting_address);
+    break;
+    }
+
   //PAGEBREAK: 13
   default:
     if(proc == 0 || (tf->cs&3) == 0){
