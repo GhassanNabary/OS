@@ -162,7 +162,6 @@ fork(void)
   np->psyc_page_count = proc->psyc_page_count;
   np->total_paged_out = proc->total_paged_out;
   if(selection ){
-    cprintf("mofo pid %d\n",np->pid);
     //swap file creation
     createSwapFile(np);
     if(proc && user_proc()){
@@ -307,10 +306,10 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        //removeing swap file
+/*        //removeing swap file
        if(removeSwapFile(p) < 0){
            cprintf("ERROR: CAN'T DELETE SWAP FILE IN Wait(), ZOMBIE\n");
-        }
+        }*/
         release(&ptable.lock);
         return pid;
       }

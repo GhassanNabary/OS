@@ -82,7 +82,7 @@ trap(struct trapframe *tf)
     break;
   case T_PGFLT:
    if(selection ){
-    cprintf("oops! page fualt!");
+    cprintf("oops! page fualt!\n");
     proc->page_faultsNum++;
     faulting_address = rcr2();
     create_new_page(faulting_address);

@@ -263,6 +263,7 @@ swap_out(pde_t *pgdir, uint selection){
     *pte |= PTE_PG;
     // free physical memory of page 
     kfree(va);
+    //cprintf("kfree in swap out\n");
     return 1;
   }
   return 0;
@@ -457,12 +458,13 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 */
 void 
 create_new_page(uint faulting_address){
-    cprintf("create_new_page\n");
+  cprintf("create_new_page\n");
   uint selection = 1;
   pte_t* pte;
   // Page allign faulting address
   faulting_address = PGROUNDDOWN(faulting_address);
   //allocating new physical mem
+  cprintf("here\n");
   char* mem = kalloc();
   //copy its data from swap file 
   readFromSwapFile(proc, mem, (proc->metadata[proc->meta_index])->location, PGSIZE);

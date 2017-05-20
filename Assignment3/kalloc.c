@@ -82,6 +82,9 @@ kfree(char *v)
 char*
 kalloc(void)
 {
+  if(holding(&kmem.lock)){
+    cprintf("kmem.lock is holded\n");
+  }
   struct run *r;
 
   if(kmem.use_lock)
