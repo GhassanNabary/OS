@@ -22,6 +22,13 @@ static void wakeup1(void *chan);
 
 uint selection = 1;
 
+#ifdef TRUE
+   uint vp  = 1;
+#elif FALSE
+   uint vp  = 0;
+#endif
+
+
 void
 pinit(void)
 {
@@ -36,6 +43,7 @@ pinit(void)
 static struct proc*
 allocproc(void)
 {
+  cprintf("vp %d\n",vp);
   int i;
   struct proc *p;
   char *sp;
@@ -81,6 +89,10 @@ found:
   {
     p->metadata[i] = 0;
   }
+  //no need for thiss ?
+  p->swapFile = 0;
+  p->swapFile_offset = 0;
+  p->meta_index = 0;
 
   return p;
 }
@@ -223,6 +235,7 @@ exit(void)
     cprintf("ERROR: CAN'T DELETE SWAP FILE IN EXIT(), PROCCESS: %d \n",proc->pid);
   }
 
+  //lcr3(v2p (proc->pgdir));
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -262,7 +275,6 @@ exit(void)
     state = states[proc->state];
   else
     state = "???";
-  uint vp = 1;
   if(vp){
     cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d name:%s",
     proc->pid, state, proc->psyc_page_count, paged_out_sum(proc), proc->page_faultsNum, proc->total_paged_out, proc->name);
@@ -527,6 +539,9 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
+    cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d name:%s",
+       p->pid, state, p->psyc_page_count, paged_out_sum(p), p->page_faultsNum, p->total_paged_out, p->name);
+
     cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);

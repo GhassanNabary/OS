@@ -223,10 +223,12 @@ user_proc(){
 }
 pte_t*
 second_fifo(pde_t *pgdir, int sz){
+  //cprintf("hand is %d\n",hand);
   pte_t *pte;
   int found = 0;
-  int i = hand % MAX_PSYC_PAGES;
+  int i = 0;//hand % MAX_PSYC_PAGES;
   for(; i < sz && !found; i += PGSIZE){
+    //cprintf("i in second_fifo %d\n",i);
     //Getting page 
     if((*(pte = walkpgdir(pgdir, (void *) i, 0)) & ~PTE_P) != 0){
       //if referne bit is on , clear it and continue
@@ -239,20 +241,27 @@ second_fifo(pde_t *pgdir, int sz){
   }
   return pte;
 }
+
+/*pte_t*
+choose_page(pde_t *pgdir){
+
+}*/
 int
 swap_out(pde_t *pgdir, uint selection){
-  //cprintf("in swap_out\n");
+  cprintf("in swap_out\n");
   pte_t *pte;
   pte = second_fifo(pgdir, proc->sz);
   if(pte == 0){
+    cprintf("in swap_out and no pte was found PTE==0\n");
     return 0;
   }
   uint pa = PTE_ADDR(*pte);
   void *va = p2v(pa);
+  // get_page check if its a valid va, as Kfree do
   char *buffer = get_page(va);
   //write the page in swap file 
   if(writeToSwapFile(proc, buffer, proc->swapFile_offset, PGSIZE) > -1){
-    (proc->metadata[proc->meta_index])->page = pte;
+    (proc->metadata[proc->meta_index])->pagePte = pte;
     (proc->metadata[proc->meta_index])-> location = proc->swapFile_offset;
     proc-> meta_index = (proc-> meta_index + 1) % NELEM(proc->metadata);
     proc->swapFile_offset = (proc->swapFile_offset + PGSIZE) % (MAX_PSYC_PAGES * PGSIZE);
@@ -263,9 +272,12 @@ swap_out(pde_t *pgdir, uint selection){
     *pte |= PTE_PG;
     // free physical memory of page 
     kfree(va);
+    //refresh TLB
+    lcr3(v2p (pgdir));
     //cprintf("kfree in swap out\n");
     return 1;
   }
+  cprintf("smth went wrong in writeToSwapFile in swap_out\n");
   return 0;
 }
 // Allocate page tables and physical memory to grow process from oldsz to
@@ -276,7 +288,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   char *mem;
   uint a;
   uint selection = 1;
-
+//cprintf("oldsz %d\n",(oldsz/PGSIZE));
+//cprintf("newsz %d\n",(newsz/PGSIZE));
   if(newsz >= KERNBASE)
     return 0;
   if(newsz < oldsz)
@@ -391,7 +404,7 @@ copyuvm(pde_t *pgdir, uint sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
+    if(!(*pte & PTE_P)&&(!(*pte & PTE_PG)))
       panic("copyuvm: page not present");
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
@@ -464,10 +477,9 @@ create_new_page(uint faulting_address){
   // Page allign faulting address
   faulting_address = PGROUNDDOWN(faulting_address);
   //allocating new physical mem
-  cprintf("here\n");
   char* mem = kalloc();
   //copy its data from swap file 
-  readFromSwapFile(proc, mem, (proc->metadata[proc->meta_index])->location, PGSIZE);
+  //readFromSwapFile(proc, mem, (proc->metadata[proc->meta_index])->location, PGSIZE);
   pte = walkpgdir(proc->pgdir, (void*)faulting_address, 0);
   // If the page fault was due to page being paged out -> swap page in.
   if(*pte&PTE_PG && proc->psyc_page_count == MAX_PSYC_PAGES){

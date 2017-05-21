@@ -5,7 +5,7 @@
 
 // To know which page is in the process' page file and where it is located in Swap file 
 struct paging_metadata {
-  pte_t* page;    // Page in swapfile
+  pte_t* pagePte;    // Page in swapfile
   int location; // Offset in swapfile
 };
 

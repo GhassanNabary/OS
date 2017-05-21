@@ -772,6 +772,7 @@ int
 writeToSwapFile(struct proc * p, char* buffer, uint placeOnFile, uint size)
 {
 	p->swapFile->off = placeOnFile;
+  //cprintf("check if swapFile is writable %d\n",p->swapFile->writable);
 	return filewrite(p->swapFile, buffer, size);
 
 }
