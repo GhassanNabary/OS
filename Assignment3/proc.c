@@ -166,6 +166,7 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
+
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
@@ -173,6 +174,8 @@ fork(void)
   np->page_faultsNum = 0;
   np->psyc_page_count = proc->psyc_page_count;
   np->total_paged_out = proc->total_paged_out;
+  np->swapFile_offset = proc->swapFile_offset;
+  np->meta_index = proc->meta_index;
   if(selection ){
     //swap file creation
     createSwapFile(np);
@@ -183,10 +186,10 @@ fork(void)
         writeToSwapFile(np, (char*)proc->swapFile, j, PGSIZE);
       }
       //copy meta data
-  /*   for (j = 0; j < NELEM(proc->metadata); j++)
+    for (j = 0; j < NELEM(proc->metadata); j++)
       {
         np->metadata[j] = proc->metadata[j];
-      }*/
+      }
     }
   }
   // Clear %eax so that fork returns 0 in the child.
@@ -276,8 +279,9 @@ exit(void)
   else
     state = "???";
   if(vp){
-    cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d name:%s",
-    proc->pid, state, proc->psyc_page_count, paged_out_sum(proc), proc->page_faultsNum, proc->total_paged_out, proc->name);
+      cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d \n",
+       proc->pid, state, proc->psyc_page_count, paged_out_sum(proc), proc->page_faultsNum, proc->total_paged_out);//, (getFreePages()/getTotalPages()));
+      cprintf("%d / %d free pages in the system\n",getFreePages(),getTotalPages());
   }
     /*if(proc && selection){
     freevm(proc->pgdir);
@@ -539,9 +543,9 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d name:%s",
-       p->pid, state, p->psyc_page_count, paged_out_sum(p), p->page_faultsNum, p->total_paged_out, p->name);
-
+    cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d\n",
+       p->pid, state, p->psyc_page_count, paged_out_sum(p), p->page_faultsNum, p->total_paged_out);//, (getFreePages()/getTotalPages()));
+    cprintf("%d / %d free pages in the system\n",getFreePages(),getTotalPages());
     cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);

@@ -45,10 +45,10 @@ main(int argc, char *argv[])
 	}
 	uint forkRes = fork();
 	if(forkRes > 0){
-		printf(1,"Parent %d\n",m1[0][0]);
+		printf(1,"Parent %d\n",forkRes);
 	}
 	else {
-		printf(1,"Child %d\n",m1[0][0]);
+		printf(1,"Child %d\n",forkRes);
 	}
 
 	for ( i = 0; i < COUNT; ++i)
@@ -65,7 +65,7 @@ main(int argc, char *argv[])
 		}
 	}
 	printf(1,"m1[0][0] %d\n",m1[0][0] );
-	
+
 	printf(1,"Finished Successfuly!!! %d\n");
 
 

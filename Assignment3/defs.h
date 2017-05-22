@@ -71,6 +71,8 @@ void            kfree(char*);
 void            kinit1(void*, void*);
 void            kinit2(void*, void*);
 char* 			get_page(char*);
+int 			getFreePages(void);
+int 			getTotalPages(void);
 
 // kbd.c
 void            kbdintr(void);
