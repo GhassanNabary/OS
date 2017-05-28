@@ -264,6 +264,42 @@ lifo(pde_t *pgdir, int sz){
 choose_page(pde_t *pgdir){
 
 }*/
+// Each tick update the counters of current proc's pages
+void
+update_lap_counters(){
+  if(proc && user_proc()){
+    int index, page = (int)proc->pgdir;
+    pte_t* pte;
+    // For each page in proc's pgdir
+    for(index = 0; index < proc->psyc_page_count; index++){
+      // Check if it's PTE_A is on, then increase counter
+      if((*(pte = walkpgdir(proc->pgdir, p2v(page), 0)) & PTE_A)){
+        proc->lap_counters[index]++;
+      }
+      // Go over to the next page
+      page = (page + PGSIZE) % MAX_TOTAL_PAGES;
+    }
+  }
+}
+
+pte_t*
+lap_swap(pde_t* pgdir){
+  pte_t* pte;
+  pte_t* minimum;
+  int page = 0 , min_counter = proc->lap_counters[0], index;
+  for(index = 0; index < MAX_PSYC_PAGES ; index++){
+    // Get page
+    if((*(pte = walkpgdir(pgdir, (void *)page, 0)) & ~PTE_P) != 0){
+      // Find lap pte
+      if(min_counter <= proc->lap_counters[index]){
+        minimum = pte;
+        min_counter = proc->lap_counters[index];
+      }  
+    }
+    page += PGSIZE;
+  } 
+  return minimum;
+}
 int
 swap_out(pde_t *pgdir, uint selection){
   cprintf("in swap_out\n");
@@ -312,17 +348,23 @@ swap_out(pde_t *pgdir, uint selection){
   cprintf("smth went wrong in writeToSwapFile in swap_out\n");
   return 0;
 }
+void
+update(){
+  hand++;
+  proc->psyc_page_count = hand % MAX_PSYC_PAGES;
+  proc-> page_faultsNum = hand % 100;
+  proc->total_paged_out = hand % 20;
+
+}
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int
 allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
-  uint a;
-  uint selection = 0;
-// cprintf("oldsz %d\n",(oldsz/PGSIZE));
-// cprintf("newsz %d\n",(newsz/PGSIZE));
-    #ifdef LIFO
+  uint a, selection = 0;
+
+  #ifdef LIFO
   uint selection = 1;
   #elif SCFIFO
     uint selection = 2;
@@ -339,13 +381,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
+    update();
     mem = kalloc();
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
       deallocuvm(pgdir, newsz, oldsz);
       return 0;
     }
-
     if(selection && proc && user_proc()){ 
       if(proc->psyc_page_count < MAX_PSYC_PAGES){
         //cprintf("in allocuvml\n");
@@ -545,7 +587,7 @@ paged_out_sum(struct proc *p){
       // Get page
       if((*(pte = walkpgdir(p->pgdir,  p2v(page), 0)) & ~PTE_P) != 0){
         // Count it if paged out
-        if((*(pte)&PTE_PG))
+        //if((*(pte)&PTE_PG))
           sum++;
       }
     }

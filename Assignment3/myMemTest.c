@@ -9,7 +9,7 @@
 #include "memlayout.h"
 
 #define PGSIZE 4096
-#define COUNT 20
+#define COUNT 10
 
 char* m1[COUNT];
 

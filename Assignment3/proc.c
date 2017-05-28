@@ -20,7 +20,16 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
-uint selection = 1;
+uint selection = 0;
+#ifdef LIFO
+  uint selection = 1;
+#elif SCFIFO
+  uint selection = 2;
+#elif LAP
+  uint selection = 3;
+#elif NONE
+  uint selection = 0;
+#endif
 
 #ifdef TRUE
    uint vp  = 1;
@@ -85,6 +94,7 @@ found:
   if(proc && selection){
     createSwapFile(p);
     }
+  memset(p->lap_counters, 0, MAX_PSYC_PAGES);
   for (i = 0; i < NELEM(p->metadata); i++)
   {
     p->metadata[i] = 0;

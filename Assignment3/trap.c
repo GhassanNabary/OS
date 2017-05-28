@@ -36,7 +36,17 @@ idtinit(void)
 void
 trap(struct trapframe *tf)
 {
+  uint selection = 0;
+#ifdef LIFO
   uint selection = 1;
+#elif SCFIFO
+  uint selection = 2;
+#elif LAP
+  uint selection = 3;
+#elif NONE
+  uint selection = 0;
+#endif
+
   uint faulting_address;
 
   if(tf->trapno == T_SYSCALL){
@@ -56,6 +66,9 @@ trap(struct trapframe *tf)
       ticks++;
       wakeup(&ticks);
       release(&tickslock);
+       #ifdef LAP
+        update_lap_counters();
+      #endif
     }
     lapiceoi();
     break;

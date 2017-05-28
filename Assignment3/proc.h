@@ -81,6 +81,7 @@ struct proc {
   int meta_index;                                     // Index of last meta-data entry
   int swapFile_offset;                                // First empty offset in swapfile
   int psyc_page_count;                                // Physical page counter
+  int lap_counters[MAX_PSYC_PAGES];                   // Holds ages of pte's
   int page_faultsNum;                                    // Number of page faults
   int total_paged_out;                                // Number of times pages were paged out
 };

@@ -189,6 +189,7 @@ void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
 int 			user_proc(void);
+void 			update_lap_counters();
 void 			create_new_page(uint faulting_address);
 int 			paged_out_sum(struct proc *p);
 

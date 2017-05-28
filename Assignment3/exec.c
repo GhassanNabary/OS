@@ -92,6 +92,8 @@ exec(char *path, char **argv)
   proc->sz = sz;
   proc->tf->eip = elf.entry;  // main
   proc->tf->esp = sp;
+
+  memset(proc->lap_counters, 0, MAX_PSYC_PAGES);
   switchuvm(proc);
   freevm(oldpgdir);
   return 0;
