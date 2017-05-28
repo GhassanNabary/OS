@@ -9,7 +9,7 @@
 #include "memlayout.h"
 
 #define PGSIZE 4096
-#define COUNT 10
+#define COUNT 20
 
 char* m1[COUNT];
 
@@ -30,7 +30,7 @@ main(int argc, char *argv[])
 	//creating 'COUNT' pages
 	for (i = 0; i < COUNT ; ++i)
 	{
-		m1[i] = malloc(PGSIZE);
+		m1[i] = sbrk(PGSIZE);
 		printf(1, "allocated page #%d at address: %x\n", i, m1[i]);
 	}
 

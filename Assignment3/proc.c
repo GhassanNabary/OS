@@ -43,7 +43,7 @@ pinit(void)
 static struct proc*
 allocproc(void)
 {
-  cprintf("vp %d\n",vp);
+  // cprintf("vp %d\n",vp);
   int i;
   struct proc *p;
   char *sp;
@@ -134,6 +134,8 @@ growproc(int n)
   uint sz;
   
   sz = proc->sz;
+  // cprintf("in proc sz %d\n",  ((sz + n)/PGSIZE));
+
   if(n > 0){
     if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
       return -1;

@@ -226,7 +226,8 @@ second_fifo(pde_t *pgdir, int sz){
   //cprintf("hand is %d\n",hand);
   pte_t *pte;
   int found = 0;
-  int i = 0;//hand % MAX_PSYC_PAGES;
+  int i = hand % MAX_PSYC_PAGES;
+  //cprintf("i in lifo %d\n",i);
   for(; i < sz && !found; i += PGSIZE){
     //cprintf("i in second_fifo %d\n",i);
     //Getting page 
@@ -242,6 +243,23 @@ second_fifo(pde_t *pgdir, int sz){
   return pte;
 }
 
+pte_t*
+lifo(pde_t *pgdir, int sz){
+  //cprintf("hand is %d\n",hand);
+  pte_t *pte;
+  int found = 0;
+  int i = MAX_PSYC_PAGES - (hand % MAX_PSYC_PAGES);
+ // int i = (MAX_PSYC_PAGES + last) % MAX_PSYC_PAGES;
+  cprintf("i in lifo %d\n",i);
+  for(; i < sz && !found; i += PGSIZE){
+    //Getting page 
+    if((*(pte = walkpgdir(pgdir, (void *) i, 0)) & PTE_P) == 0){
+        //cprintf("pte in lifo %d\n",pte);
+        found = 1;
+    }
+  }
+  return pte;
+}
 /*pte_t*
 choose_page(pde_t *pgdir){
 
@@ -250,7 +268,19 @@ int
 swap_out(pde_t *pgdir, uint selection){
   cprintf("in swap_out\n");
   pte_t *pte;
-  pte = second_fifo(pgdir, proc->sz);
+    switch (selection){
+    case 1:
+      pte = lifo(pgdir, proc->sz);
+      break;
+    case 2:
+      pte = second_fifo(pgdir, proc->sz);
+      break;
+    case 3:
+      pte = second_fifo(pgdir, proc->sz);
+      break;
+    default:
+      break;
+  }
   if(pte == 0){
     cprintf("in swap_out and no pte was found PTE==0\n");
     return 0;
@@ -275,6 +305,8 @@ swap_out(pde_t *pgdir, uint selection){
     //refresh TLB
     lcr3(v2p (pgdir));
     //cprintf("kfree in swap out\n");
+    // cprintf("meta_index %d\n",proc->meta_index);
+    // cprintf("swapFile_offset %d\n", (proc->swapFile_offset/PGSIZE));
     return 1;
   }
   cprintf("smth went wrong in writeToSwapFile in swap_out\n");
@@ -287,9 +319,19 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
+  uint selection = 0;
+// cprintf("oldsz %d\n",(oldsz/PGSIZE));
+// cprintf("newsz %d\n",(newsz/PGSIZE));
+    #ifdef LIFO
   uint selection = 1;
-//cprintf("oldsz %d\n",(oldsz/PGSIZE));
-//cprintf("newsz %d\n",(newsz/PGSIZE));
+  #elif SCFIFO
+    uint selection = 2;
+  #elif Lap
+    uint selection = 3;
+  #elif NONE
+    uint selection = 0;
+  #endif
+
   if(newsz >= KERNBASE)
     return 0;
   if(newsz < oldsz)
@@ -410,7 +452,7 @@ copyuvm(pde_t *pgdir, uint sz)
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
       goto bad;
-    cprintf("here\n");
+    //cprintf("here\n");
     memmove(mem, (char*)p2v(pa), PGSIZE);
     if(mappages(d, (void*)i, PGSIZE, v2p(mem), flags) < 0)
       goto bad;
@@ -480,7 +522,7 @@ create_new_page(uint faulting_address){
   //allocating new physical mem
   char* mem = kalloc();
   //copy its data from swap file 
-  //readFromSwapFile(proc, mem, (proc->metadata[proc->meta_index])->location, PGSIZE);
+  readFromSwapFile(proc, mem, (proc->metadata[proc->meta_index])->location, PGSIZE);
   pte = walkpgdir(proc->pgdir, (void*)faulting_address, 0);
   // If the page fault was due to page being paged out -> swap page in.
   if(*pte&PTE_PG && proc->psyc_page_count == MAX_PSYC_PAGES){
@@ -492,6 +534,7 @@ create_new_page(uint faulting_address){
   }
 
 }
+
 
 int
 paged_out_sum(struct proc *p){

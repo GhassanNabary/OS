@@ -69,6 +69,10 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
+ifndef SELECTION
+	SELECTION := SCFIFO
+endif
+
 ifndef VERBOSE_PRINT
 	VERBOSE_PRINT := FALSE
 endif
