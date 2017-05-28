@@ -1,13 +1,5 @@
 // Segments in proc->gdt.
 #define NSEGS     7
-#define MAX_PSYC_PAGES 15
-#define MAX_TOTAL_PAGES 30 
-
-// To know which page is in the process' page file and where it is located in Swap file 
-struct paging_metadata {
-  pte_t* pagePte;    // Page in swapfile
-  int location; // Offset in swapfile
-};
 
 // Per-CPU state
 struct cpu {
@@ -77,13 +69,7 @@ struct proc {
 
   //Swap file. must initiate with create swap file
   struct file *swapFile;			//page file
-  struct paging_metadata *metadata[MAX_PSYC_PAGES];   // Paging meta-data
-  int meta_index;                                     // Index of last meta-data entry
-  int swapFile_offset;                                // First empty offset in swapfile
-  int psyc_page_count;                                // Physical page counter
-  int lap_counters[MAX_PSYC_PAGES];                   // Holds ages of pte's
-  int page_faultsNum;                                    // Number of page faults
-  int total_paged_out;                                // Number of times pages were paged out
+
 };
 
 // Process memory is laid out contiguously, low addresses first:

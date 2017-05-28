@@ -20,24 +20,6 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
-uint selection = 0;
-#ifdef LIFO
-  uint selection = 1;
-#elif SCFIFO
-  uint selection = 2;
-#elif LAP
-  uint selection = 3;
-#elif NONE
-  uint selection = 0;
-#endif
-
-#ifdef TRUE
-   uint vp  = 1;
-#elif FALSE
-   uint vp  = 0;
-#endif
-
-
 void
 pinit(void)
 {
@@ -52,8 +34,6 @@ pinit(void)
 static struct proc*
 allocproc(void)
 {
-  // cprintf("vp %d\n",vp);
-  int i;
   struct proc *p;
   char *sp;
 
@@ -89,20 +69,6 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-
-  //file creation
-  if(proc && selection){
-    createSwapFile(p);
-    }
-  memset(p->lap_counters, 0, MAX_PSYC_PAGES);
-  for (i = 0; i < NELEM(p->metadata); i++)
-  {
-    p->metadata[i] = 0;
-  }
-  //no need for thiss ?
-  p->swapFile = 0;
-  p->swapFile_offset = 0;
-  p->meta_index = 0;
 
   return p;
 }
@@ -144,8 +110,6 @@ growproc(int n)
   uint sz;
   
   sz = proc->sz;
-  // cprintf("in proc sz %d\n",  ((sz + n)/PGSIZE));
-
   if(n > 0){
     if((sz = allocuvm(proc->pgdir, sz, sz + n)) == 0)
       return -1;
@@ -164,7 +128,7 @@ growproc(int n)
 int
 fork(void)
 {
-  int i, j, pid;
+  int i, pid;
   struct proc *np;
 
   // Allocate process.
@@ -178,32 +142,10 @@ fork(void)
     np->state = UNUSED;
     return -1;
   }
-
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
-  // check if needed
-  np->page_faultsNum = 0;
-  np->psyc_page_count = proc->psyc_page_count;
-  np->total_paged_out = proc->total_paged_out;
-  np->swapFile_offset = proc->swapFile_offset;
-  np->meta_index = proc->meta_index;
-  if(selection ){
-    //swap file creation
-    createSwapFile(np);
-    if(proc && user_proc()){
-    //copy father's swap files
-      for (j = 0; j < proc->swapFile_offset; j+=PGSIZE)
-      {
-        writeToSwapFile(np, (char*)proc->swapFile, j, PGSIZE);
-      }
-      //copy meta data
-    for (j = 0; j < NELEM(proc->metadata); j++)
-      {
-        np->metadata[j] = proc->metadata[j];
-      }
-    }
-  }
+
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -232,25 +174,9 @@ exit(void)
 {
   struct proc *p;
   int fd;
-  static char *states[] = {
-  [UNUSED]    "unused",
-  [EMBRYO]    "embryo",
-  [SLEEPING]  "sleep ",
-  [RUNNABLE]  "runble",
-  [RUNNING]   "run   ",
-  [ZOMBIE]    "zombie"
-  };
-  char *state;
 
   if(proc == initproc)
     panic("init exiting");
-
-  //removeing swap file
-  if( proc && selection && removeSwapFile(proc) < 0){
-    cprintf("ERROR: CAN'T DELETE SWAP FILE IN EXIT(), PROCCESS: %d \n",proc->pid);
-  }
-
-  //lcr3(v2p (proc->pgdir));
 
   // Close all open files.
   for(fd = 0; fd < NOFILE; fd++){
@@ -278,28 +204,6 @@ exit(void)
         wakeup1(initproc);
     }
   }
-  // Jump into the scheduler, never to return.
-  proc->state = ZOMBIE;
-
-  //TODO: NISBE
-  /*
-  * PRINT INFO
-  * <field 1><field 2><allocated memory pages><paged out><page faults><total number of paged out><field set 3> 
-  */
-  if(proc->state >= 0 && proc->state < NELEM(states) && states[proc->state])
-    state = states[proc->state];
-  else
-    state = "???";
-  if(vp){
-      cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d \n",
-       proc->pid, state, proc->psyc_page_count, paged_out_sum(proc), proc->page_faultsNum, proc->total_paged_out);//, (getFreePages()/getTotalPages()));
-      cprintf("%d / %d free pages in the system\n",getFreePages(),getTotalPages());
-  }
-    /*if(proc && selection){
-    freevm(proc->pgdir);
-    if(removeSwapFile(proc) < 0)
-      cprintf("ERROR: remove swap file (exit)\n");
-  }*/
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
@@ -334,10 +238,6 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-/*        //removeing swap file
-       if(removeSwapFile(p) < 0){
-           cprintf("ERROR: CAN'T DELETE SWAP FILE IN Wait(), ZOMBIE\n");
-        }*/
         release(&ptable.lock);
         return pid;
       }
@@ -555,9 +455,6 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("pid:%d state:%s pages:%d paged_out_pages:%d pgfaults:%d total_paged_out:%d\n",
-       p->pid, state, p->psyc_page_count, paged_out_sum(p), p->page_faultsNum, p->total_paged_out);//, (getFreePages()/getTotalPages()));
-    cprintf("%d / %d free pages in the system\n",getFreePages(),getTotalPages());
     cprintf("%d %s %s", p->pid, state, p->name);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);

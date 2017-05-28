@@ -11,8 +11,7 @@
 
 void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
-int freePages = 0;
-int totalPages = 0;
+
 struct run {
   struct run *next;
 };
@@ -22,15 +21,6 @@ struct {
   int use_lock;
   struct run *freelist;
 } kmem;
-
-int
-getFreePages(){
-  return freePages;
-}
-int
-getTotalPages(){
-  return totalPages;
-}
 
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
@@ -48,12 +38,8 @@ kinit1(void *vstart, void *vend)
 void
 kinit2(void *vstart, void *vend)
 {
-
   freerange(vstart, vend);
   kmem.use_lock = 1;
-  totalPages = ((vend - vstart) / PGSIZE);
-  freePages = totalPages;
-  // cprintf("kinit2 %d\n",freePages);
 }
 
 void
@@ -77,7 +63,7 @@ kfree(char *v)
 
   if((uint)v % PGSIZE || v < end || v2p(v) >= PHYSTOP)
     panic("kfree");
-  freePages++;
+
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
 
@@ -96,11 +82,8 @@ kfree(char *v)
 char*
 kalloc(void)
 {
-  if(holding(&kmem.lock)){
-    cprintf("kmem.lock is holded\n");
-  }
   struct run *r;
-  freePages--;
+
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
@@ -111,23 +94,3 @@ kalloc(void)
   return (char*)r;
 }
 
-char *
-get_page(char *v){
-  struct run *r;
-
-  if((uint)v % PGSIZE)
-    panic("ERROR: get_page, not aligned page");
-  if(v < end)
-    panic("ERROR: get_page, v < end");
-  if(v2p(v) >= PHYSTOP)
-    panic("ERROR: get_page,v >= PHYSTOP");
-
-  if(kmem.use_lock)
-    acquire(&kmem.lock);
-  r = (struct run*)v;
-
-  if(kmem.use_lock)
-    release(&kmem.lock);
-
-  return (char*)r;
-}
